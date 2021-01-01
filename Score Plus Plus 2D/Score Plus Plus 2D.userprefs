@@ -1,0 +1,20 @@
+﻿<Properties StartupItem="Assembly-CSharp.csproj">
+  <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug" PreferredExecutionTarget="Unity.Instance.Unity Editor" />
+  <MonoDevelop.Ide.Workbench ActiveDocument="Assets\Scripts\PlatformManager.cs">
+    <Files>
+      <File FileName="Assets\Scripts\GameManager.cs" Line="207" Column="5" />
+      <File FileName="Assets\Scripts\CameraBehaviour.cs" Line="55" Column="36" />
+      <File FileName="Assets\Scripts\PlatformManager.cs" Line="769" Column="58" />
+      <File FileName="Assets\Scripts\GridSetter.cs" Line="1" Column="1" />
+      <File FileName="Assets\Scripts\TileBehaviour.cs" Line="1" Column="1" />
+      <File FileName="Assets\Scripts\TileDragBehaviour.cs" Line="135" Column="74" />
+      <File FileName="Assets\Scripts\UIManager.cs" Line="34" Column="43" />
+      <File FileName="Assets\Scripts\TimeManager.cs" Line="60" Column="63" />
+      <File FileName="Assets\Scripts\ColourManager.cs" Line="24" Column="30" />
+    </Files>
+  </MonoDevelop.Ide.Workbench>
+  <MonoDevelop.Ide.DebuggingService.Breakpoints>
+    <BreakpointStore />
+  </MonoDevelop.Ide.DebuggingService.Breakpoints>
+  <MonoDevelop.Ide.DebuggingService.PinnedWatches />
+</Properties>

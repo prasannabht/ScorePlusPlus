@@ -1,0 +1,588 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.UI;
+
+
+public class GameManagerOld : MonoBehaviour {
+
+	public static bool StartGameFlag = false;
+
+	bool displayStartTiles = true;
+	public GameObject PlatformInstantiator;
+	public GameObject StartScreenPlatform;
+	//public Text ScoreUI;
+	//public Text PuzzleType;
+	public float platformShiftOffset = 6f;
+	public float platformShiftOffset2 = 8f;
+	public float platformShiftOffset3 = 10f;
+	float currPlatformShiftOffset;
+
+	bool firstPlatform = true;
+	int currScore;
+	public static int nextScore = 0;
+
+	[HideInInspector]
+	public int puzzleNum = 0;
+
+	static Dictionary<int, string> scoreDict;
+	Dictionary<int, string> puzzleDict;
+	Dictionary<int, Dictionary<string, Color>> colorDict;
+
+
+	string tileString = "";
+	bool borderTilesSelected = false;
+
+	static GameObject currPlatform;
+	CameraBehaviour CameraManager;
+
+	static bool ShowHintFlag = false;
+	bool HideHintFlag = false;
+	bool WaitForHintFlag = false;
+	bool waitingFlag = false;
+	bool waitingCompleteFlag = false;
+	bool tutorialHintShown = false;
+	bool ScoreCompleteFlag = false;
+	string hintStr;
+
+	bool GoToNextPlatformFlag = false;
+
+	void Awake(){
+		CameraManager = FindObjectOfType<CameraBehaviour>();
+
+		if (!PlayerPrefs.HasKey ("score")) {
+			PlayerPrefs.SetInt ("score", 0);
+		}
+		scoreDict = PopulateScoreDictionary ();
+		puzzleDict = PopulatePuzzleTypeDictionary ();
+		colorDict = PopulateColorDictionary ();
+
+		//nextScore = 1;
+
+		currScore = PlayerPrefs.GetInt ("score");
+		if(currScore == 0)
+			nextScore = currScore;
+		else
+			nextScore = currScore + 1;
+	}
+
+	void Start(){
+
+		print ("show start tiles");
+		GameObject platformObjNew = (GameObject)Instantiate(StartScreenPlatform);
+		currPlatform = platformObjNew;
+
+		InvokeRepeating ("PlatformUpdate", 0, 0.5f);
+
+	}
+
+	void Update(){
+
+		if (ShowHintFlag) {
+			print ("Hint for: " + nextScore);
+			hintStr = GetScoreString (nextScore);
+
+			int j = 0;
+			foreach (Transform tile in currPlatform.transform) {
+				if (tile.tag == "tile" && j < hintStr.Length) {
+					if (hintStr [j] == '1') {
+						tile.GetComponent<SpriteRenderer> ().color += new Color (0.3f, 0.3f, 0, 0);
+					}
+					j++;
+				}
+			}
+			ShowHintFlag = false;
+			WaitForHintFlag = true;
+		}
+
+		if (WaitForHintFlag && !waitingFlag) {
+			if(nextScore == 1)
+				StartCoroutine(WaitForHint (1.5f));
+			else
+				StartCoroutine(WaitForHint (1.0f));
+		}
+			
+
+		if (HideHintFlag) {
+			int j = 0;
+			foreach (Transform tile in currPlatform.transform) {
+				if (tile.tag == "tile" && j < hintStr.Length) {
+					if (hintStr [j] == '1') {
+						tile.GetComponent<SpriteRenderer> ().color -= new Color (0.3f, 0.3f, 0, 0);
+					}
+					j++;
+				}
+			}
+			HideHintFlag = false;
+		}
+	}
+
+	void StartScreenDisplay(){
+
+
+	}
+
+	void PlatformUpdate(){
+
+		if (!StartGameFlag) {
+			return;
+		}
+
+		string ScoreString = GetScoreString (nextScore);
+
+//		print ("tile string: " + tileString);
+//		print ("score string: " + ScoreString); 
+
+		//for testing
+		//tileString = ScoreString;
+
+
+		if (tileString == ScoreString) {
+
+			if (!ScoreCompleteFlag) {
+				currPlatform.GetComponent<PlatformManager> ().ScoreComplete ();
+				ScoreCompleteFlag = true;
+			}
+			if (!waitingCompleteFlag) {
+				StartCoroutine(WaitForPlatformComplete (2.0f));
+			}
+		} else {
+			GoToNextPlatformFlag = false;
+		}
+		
+
+		if (firstPlatform || ( GoToNextPlatformFlag && !borderTilesSelected )) {
+
+			if (!firstPlatform) {
+
+				PlayerPrefs.SetInt ("score", nextScore);
+				currScore = nextScore;
+				nextScore++;
+
+			}
+			if (GoToNextPlatformFlag) {
+				ScoreCompleteFlag = false;
+
+			}
+			//Reset flag to move camera
+			CameraManager.cameraAdjusted = false;
+
+			//Get new type of puzzle
+			puzzleNum = GetPuzzleType(puzzleDict);
+			if (nextScore == 0) {
+				puzzleNum = 2;
+			}
+			if (nextScore == 1) {
+				puzzleNum = 1;
+				tutorialHintShown = false;
+			}
+			//puzzleNum = 2;
+
+			GameObject platformObjNew = (GameObject)Instantiate(PlatformInstantiator);
+
+			if (nextScore >= 100) {
+				currPlatformShiftOffset = platformShiftOffset3;
+				platformObjNew.GetComponent<PlatformManager> ().populateGrid (5, 7, 3);
+			} else if (nextScore >= 10) {
+				currPlatformShiftOffset = platformShiftOffset2;
+				platformObjNew.GetComponent<PlatformManager> ().populateGrid (5, 7, 2);
+			} else {
+				currPlatformShiftOffset = platformShiftOffset;
+				platformObjNew.GetComponent<PlatformManager> ().populateGrid (5, 7, 1);
+			}
+
+			//if (!firstPlatform) {
+				platformObjNew.transform.position = GetNextPlatformPos (currPlatform, platformObjNew);
+				platformObjNew.transform.Rotate (0, 0, Random.Range (-90.0f, 0f));
+			//}
+			currPlatform = platformObjNew;
+
+			// Post - populate activities
+			// if puzzle is Drag
+			if (puzzleNum == 0) {
+				string shuffledTileString = ShuffleTileString (GetScoreString (nextScore), currPlatform, false);
+				ShowScoreOnGrid (shuffledTileString, currPlatform, false);
+			}
+			//Drag from whole platform
+			if (puzzleNum == 1) {
+				string shuffledTileString = ShuffleTileString (GetScoreString (nextScore), currPlatform, true);
+				ShowScoreOnGrid (shuffledTileString, currPlatform, true);
+			}
+			//Drag from outside platform
+			if (puzzleNum == 2) {
+				//string shuffledTileString = ShuffleTileString (GetScoreString (nextScore), currPlatform, true);
+				currPlatform.GetComponent<PlatformManager> ().GenerateTilesOutside (GetScoreString (nextScore));
+			}
+			//--------------------------
+
+			if (firstPlatform)
+				firstPlatform = false;
+
+			if ((nextScore == 0) && !tutorialHintShown) {
+				print ("Hint for: " + nextScore);
+				hintStr = GetScoreString (nextScore);
+
+				int j = 0;
+				foreach (Transform tile in currPlatform.transform) {
+					if (tile.tag == "tile" && j < hintStr.Length) {
+						if (hintStr [j] == '1') {
+							tile.GetComponent<SpriteRenderer> ().color += new Color (0.3f, 0.3f, 0, 0);
+						}
+						j++;
+					}
+				}
+
+				currPlatform.GetComponent<PlatformManager> ().ShowHintScreenFlag = true;
+
+				//Show text on hintscreen
+
+
+				tutorialHintShown = true;
+			}
+
+			if (nextScore == 1 && !tutorialHintShown) {
+				ShowHintFlag = true;
+				tutorialHintShown = true;
+				currPlatform.GetComponent<PlatformManager> ().ShowHintScreenFlag = true;
+			}
+		}
+
+		FindObjectOfType<CameraBehaviour> ().MoveCamera (currPlatform);
+
+		tileString = "";
+		bool anythingInBorder = false;
+		foreach (Transform tile in currPlatform.transform) {
+			if (tile.tag == "tile") {
+				tileString = tileString + tile.GetComponent<ITileInterface> ().GetTileCode ();
+			} else if (tile.tag == "bordertile") {
+				if (tile.GetComponent<ITileInterface> ().GetTileCode () == 1) {
+					anythingInBorder = true;
+				}
+			}
+		}
+		if (anythingInBorder)
+			borderTilesSelected = true;
+		else
+			borderTilesSelected = false;
+
+	} 
+
+
+
+	string ShuffleTileString(string tileString, GameObject platform, bool includeBorder){
+		string shuffledString = tileString;
+		if (includeBorder) {
+			string borderStr = "";
+			foreach (Transform borderTile in platform.transform) {
+				if (borderTile.tag == "bordertile") {
+					borderStr += "0";
+				}
+			}
+			tileString += borderStr; 
+		}
+
+		char[] tileStringArr = tileString.ToCharArray ();
+		List<char> tileList = new List<char> (tileStringArr);
+		List<char> shuffledList = new List<char> ();
+
+		for (int i = tileList.Count; i > 0; i--) {
+			int index = Random.Range (0, i);
+			shuffledList.Add (tileList [index]);
+			tileList [index] = tileList [i - 1];
+		}
+		shuffledString = new string (shuffledList.ToArray ());
+		return shuffledString;
+	}
+
+	void ShowScoreOnGrid(string scoreString, GameObject platform, bool includeBorder){
+
+		//string scoreString = GetScoreString(score);
+		int[] scoreArray = new int[scoreString.Length];
+		for (int i = 0; i < scoreString.Length; i++) {
+			int.TryParse(scoreString [i].ToString(), out scoreArray[i]);
+			//print (scoreArray [i]);
+		}
+
+		if (includeBorder) {
+			int j = 0;
+			foreach (Transform tile in platform.transform) {
+				if (tile.tag == "tile" || tile.tag == "bordertile" && j < scoreString.Length) {
+					tile.GetComponent<ITileInterface> ().SetTileCode (scoreArray [j]);
+					//print (scoreArray [j]);
+					j++;
+				}
+			}
+		} else {
+			int j = 0;
+			foreach (Transform tile in platform.transform) {
+				if (tile.tag == "tile" && j < scoreString.Length) {
+					tile.GetComponent<ITileInterface> ().SetTileCode (scoreArray [j]);
+					//print (scoreArray [j]);
+					j++;
+				}
+			}
+		}
+
+	}
+
+//	string MirrorTileString(string tileString){
+//		int strLen = tileString.Length;
+//		int strCount = (strLen + 15 - 1) / 15;
+//
+//		string[] splitArr = new string[strCount];
+//		for (int i = 0; i < strCount; ++i) {
+//			splitArr [i] = tileString.Substring (i * 15, Mathf.Min (15, strLen));
+//			strLen -= 15;
+//		}
+//
+//		string mirroredStr = "";
+//		for (int j = splitArr.Length - 1; j >= 0; j--) {
+//			string revString = "";
+//			for (int i = 0; i < splitArr[j].Length; i = i + 3) {
+//				revString = revString + splitArr[j] [i + 2] + splitArr[j] [i + 1] + splitArr[j] [i];
+//			}
+//			mirroredStr += revString;
+//		}
+//
+//		return mirroredStr;
+//	}
+
+//	string UpsideDownTileString(string tileString){
+//		int strLen = tileString.Length;
+//		int strCount = (strLen + 15 - 1) / 15;
+//
+//		string[] splitArr = new string[strCount];
+//		for (int i = 0; i < strCount; ++i) {
+//			splitArr [i] = tileString.Substring (i * 15, Mathf.Min (15, strLen));
+//			strLen -= 15;
+//		}
+//
+//		string mirroredStr = "";
+//		for (int j = splitArr.Length - 1; j >= 0; j--) {
+//			string revString = "";
+//			for (int i = 0; i < splitArr[j].Length; i = i + 3) {
+//				revString = "" + splitArr[j] [i] + splitArr[j] [i + 1] + splitArr[j] [i + 2] + revString;
+//			}
+//			mirroredStr = revString + mirroredStr;
+//		}
+//
+//		return mirroredStr;
+//	}
+
+	public int GetNextScore(){
+		return nextScore;
+	}
+
+
+	Vector3 GetNextPlatformPos(GameObject currPlatform, GameObject nextPlatform){
+
+		Vector3 platformPos;
+		if (currPlatform == null) {
+			platformPos = Camera.main.transform.position;
+		} else {
+			platformPos = currPlatform.transform.position;
+		}
+
+		int tempD = Random.Range(0, 2);
+		Bounds bound = nextPlatform.GetComponent<PlatformManager> ().GetBounds ();
+		Vector3 boundSize = bound.max - bound.min;
+		if (tempD == 0) {
+			platformPos = platformPos + new Vector3 (0, boundSize.y + currPlatformShiftOffset, 0);	
+		} else {
+			platformPos = platformPos + new Vector3 (boundSize.x + currPlatformShiftOffset, 0, 0);	
+		}
+
+		return platformPos;
+	}
+
+	public string GetScoreString(int score){
+		if (score < 10) {
+			return scoreDict [score];
+		} else if (score < 100) {
+			int num1 = score / 10;
+			int num2 = score % 10;
+
+			string numString = scoreDict [num1] + scoreDict [num2];
+			return numString;
+
+		} else {
+			int num1 = score / 100;
+			int tempNum = score % 100;
+			int num2 = tempNum / 10;
+			int num3 = tempNum % 10;
+
+			string numString = scoreDict [num1] + scoreDict [num2] + scoreDict [num3];
+			return numString;
+		}
+	}
+
+
+	public void ShowHint(){
+		if (!ShowHintFlag) {
+			ShowHintFlag = true;
+			currPlatform.GetComponent<PlatformManager> ().ShowHintScreenFlag = true;
+			currPlatform.GetComponent<PlatformManager> ().HideHintScreenFlag = false;
+		}
+	}
+
+	public void HideHint(){
+			ShowHintFlag = false;
+			currPlatform.GetComponent<PlatformManager> ().ShowHintScreenFlag = false;
+			currPlatform.GetComponent<PlatformManager> ().HideHintScreenFlag = true;
+	}
+
+	IEnumerator WaitForHint(float t){
+		waitingFlag = true;
+		yield return new WaitForSeconds (t);
+		waitingFlag = false;
+		HideHintFlag = true;
+		WaitForHintFlag = false;
+	}
+
+	IEnumerator WaitForPlatformComplete(float t){
+		waitingCompleteFlag = true;
+		yield return new WaitForSeconds (t);
+		waitingCompleteFlag = false;
+		GoToNextPlatformFlag = true;
+	}
+
+	public Dictionary<int, string> PopulatePuzzleTypeDictionary(){
+		Dictionary<int, string> tempDict = new Dictionary<int, string>();
+
+//		tempDict.Add (0, "TAP");
+//		tempDict.Add (1, "COLOR");
+//		tempDict.Add (2, "MIRROR");
+//		tempDict.Add (3, "DRAG");
+//		tempDict.Add (4, "DRAG 2");
+//		tempDict.Add (5, "DRAG 3");
+//		tempDict.Add (6, "UPSIDE DOWN");
+
+		tempDict.Add (0, "DRAG");
+		tempDict.Add (1, "DRAG 2");
+		tempDict.Add (2, "DRAG 3");
+
+		return tempDict;
+	}
+
+	int GetPuzzleType(Dictionary<int, string> puzzleDir){
+		return Random.Range(0, puzzleDir.Count);
+	}
+
+
+	Dictionary<int, string> PopulateScoreDictionary(){
+		Dictionary<int, string> tempDict = new Dictionary<int, string>();
+
+		tempDict.Add
+		(0,
+			"111" +
+			"101" +
+			"101" +
+			"101" +
+			"111"
+		);
+
+		tempDict.Add
+		(1,
+			"110" +
+			"010" +
+			"010" +
+			"010" +
+			"111"
+		);
+
+		tempDict.Add
+		(2,
+			"111" +
+			"001" +
+			"111" +
+			"100" +
+			"111"
+		);
+
+		tempDict.Add
+		(3,
+			"111" +
+			"001" +
+			"111" +
+			"001" +
+			"111"
+		);
+
+		tempDict.Add
+		(4,
+			"101" +
+			"101" +
+			"111" +
+			"001" +
+			"001"
+		);
+
+		tempDict.Add
+		(5,
+			"111" +
+			"100" +
+			"111" +
+			"001" +
+			"111"
+		);
+
+		tempDict.Add
+		(6,
+			"111" +
+			"100" +
+			"111" +
+			"101" +
+			"111"
+		);
+
+		tempDict.Add
+		(7,
+			"111" +
+			"001" +
+			"001" +
+			"001" +
+			"001"
+		);
+
+		tempDict.Add
+		(8,
+			"111" +
+			"101" +
+			"111" +
+			"101" +
+			"111"
+		);
+
+		tempDict.Add
+		(9,
+			"111" +
+			"101" +
+			"111" +
+			"001" +
+			"111"
+		);
+
+		return tempDict;
+	}
+
+	public void ClearScore(){
+		PlayerPrefs.SetInt ("score", 0);
+		currScore = PlayerPrefs.GetInt ("score");
+		nextScore = currScore + 1;
+		//ScoreUI.text = currScore.ToString ();
+	}
+
+
+	public Dictionary<int, Dictionary<string, Color>> PopulateColorDictionary(){
+		
+		Dictionary<int, Dictionary<string, Color>> colorTypeDict = new Dictionary<int, Dictionary<string, Color>>();
+
+//		Dictionary<string, Color> colorDict = new Dictionary<string, Color>();
+//		Color newColor;
+//		ColorUtility.TryParseHtmlString ("#AA3E35FF", newColor);
+//		colorDict.Add ("BASE", newColor);
+
+		return colorTypeDict;
+	}
+}
+

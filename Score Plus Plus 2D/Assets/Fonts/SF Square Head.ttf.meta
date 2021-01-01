@@ -1,0 +1,21 @@
+fileFormatVersion: 2
+guid: 2e099897eedcf364b8ca9b660e1aa0a1
+timeCreated: 1522209871
+licenseType: Free
+TrueTypeFontImporter:
+  serializedVersion: 4
+  fontSize: 16
+  forceTextureCase: -2
+  characterSpacing: 0
+  characterPadding: 1
+  includeFontData: 1
+  fontName: SF Square Head
+  fontNames:
+  - SF Square Head
+  fallbackFontReferences: []
+  customCharacters: 
+  fontRenderingMode: 0
+  ascentCalculationMode: 1
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
